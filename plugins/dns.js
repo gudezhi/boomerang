@@ -10,8 +10,7 @@ This code is based on Carlos Bueno's guide to DNS on the YDN blog:
 http://developer.yahoo.net/blog/archives/2009/11/guide_to_dns.html
 */
 
-// w is the window object
-(function(w) {
+(function() {
 
 BOOMR = BOOMR || {};
 BOOMR.plugins = BOOMR.plugins || {};
@@ -27,23 +26,27 @@ var impl = {
 	gen_url: "",
 
 	start: function() {
-		var random = Math.floor(Math.random()*(2147483647)).toString(36),
-		    cache_bust = "" + (new Date().getTime()) + (Math.random());
+		if(impl.gen_url) {	// already running
+			return;
+		}
 
-		this.gen_url = this.base_url.replace(/\*/, random);
+		var random = Math.random().toString(36),
+		    cache_bust = (new Date().getTime()) + "." + (Math.random());
+
+		impl.gen_url = impl.base_url.replace(/\*/, random);
 
 		impl.img = new Image();
 		impl.img.onload = impl.A_loaded;
 
 		impl.t_start = new Date().getTime();
-		impl.img.src = this.gen_url + "image-l.gif?t=" + cache_bust;
+		impl.img.src = impl.gen_url + "image-l.gif?t=" + cache_bust;
 	},
 
 	A_loaded: function() {
 		var cache_bust;
 		impl.t_dns = new Date().getTime() - impl.t_start;
 
-		cache_bust = "" + (new Date().getTime()) + (Math.random());
+		cache_bust = (new Date().getTime()) + "." + (Math.random());
 
 		impl.img = new Image();
 		impl.img.onload = impl.B_loaded;
@@ -65,38 +68,16 @@ var impl = {
 
 		var dns = impl.t_dns - impl.t_http;
 
-		BOOMR.addVar("dns", dns);
-		this.complete = true;
-		BOOMR.sendBeacon();
-	},
-
-	read_timing_api: function(t) {
-		if(typeof t.domainLookupStart === "undefined"
-				|| typeof t.domainLookupEnd === "undefined") {
-			return false;
-		}
-
-		// This will be 0 if we read DNS from cache, but that's what
-		// we want because it's what the user experiences
-		BOOMR.addVar("dns", t.domainLookupEnd - t.domainLookupStart);
-
+		BOOMR.addVar("dns.t", dns);
 		impl.complete = true;
-
-		return true;
+		impl.gen_url = "";
+		BOOMR.sendBeacon();
 	}
 };
 
 BOOMR.plugins.DNS = {
 	init: function(config) {
 		BOOMR.utils.pluginConfig(impl, config, "DNS", ["base_url"]);
-
-		// If this browser supports the WebTiming API, then we just
-		// use that and don't bother doing the test
-		if(w.performance && w.performance.timing) {
-			if(impl.read_timing_api(w.performance.timing)) {
-				return this;
-			}
-		}
 
 		if(!impl.base_url) {
 			BOOMR.warn("DNS.base_url is not set.  Cannot run DNS test.", "dns");
@@ -105,15 +86,13 @@ BOOMR.plugins.DNS = {
 			return this;
 		}
 
-		// make sure that dns test images use the same protocol as the host page
-		if(w.location.protocol === 'https:') {
-			impl.base_url = impl.base_url.replace(/^http:/, 'https:');
-		}
-		else {
-			impl.base_url = impl.base_url.replace(/^https:/, 'http:');
+		// do not run test over https
+		if(BOOMR.window.location.protocol === 'https:') {
+			impl.complete = true;
+			return this;
 		}
 
-		BOOMR.subscribe("page_ready", impl.start, null, this);
+		BOOMR.subscribe("page_ready", impl.start, null, impl);
 
 		return this;
 	},
@@ -123,5 +102,5 @@ BOOMR.plugins.DNS = {
 	}
 };
 
-}(window));
+}());
 

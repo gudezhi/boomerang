@@ -29,7 +29,7 @@ Beacon parameters:
 		to the ipv6 host.
 */
 
-(function(w) {
+(function() {
 
 BOOMR = BOOMR || {};
 BOOMR.plugins = BOOMR.plugins || {};
@@ -68,7 +68,7 @@ var impl = {
 			a = arguments;
 
 		// Terminate if we've reached end of test list
-		if(!which || !(which in this.timers)) {
+		if(!which || !this.timers.hasOwnProperty(which)) {
 			this.done();
 			return false;
 		}
@@ -130,6 +130,19 @@ var impl = {
 
 		this.complete = true;
 		BOOMR.sendBeacon();
+	},
+
+	skip: function() {
+		// it's possible that we didn't start, so sendBeacon never
+		// gets called.  Let's set our complete state and call sendBeacon.
+		// This happens if onunload fires before onload
+
+		if(!this.complete) {
+			this.complete = true;
+			BOOMR.sendBeacon();
+		}
+
+		return this;
 	}
 };
 
@@ -149,16 +162,16 @@ BOOMR.plugins.IPv6 = {
 		}
 
 		// make sure that test images use the same protocol as the host page
-		if(w.location.protocol === 'https:') {
-			impl.ipv6_url = impl.ipv6_url.replace(/^http:/, 'https:');
-			impl.host_url = impl.host_url.replace(/^http:/, 'https:');
-		}
-		else {
-			impl.ipv6_url = impl.ipv6_url.replace(/^https:/, 'http:');
-			impl.host_url = impl.host_url.replace(/^https:/, 'http:');
+		if(BOOMR.window.location.protocol === 'https:') {
+			impl.complete = true;
+			return this;
 		}
 
+		impl.ipv6_url = impl.ipv6_url.replace(/^https:/, 'http:');
+		impl.host_url = impl.host_url.replace(/^https:/, 'http:');
+
 		BOOMR.subscribe("page_ready", impl.start, null, impl);
+		BOOMR.subscribe("page_unload", impl.skip, null, impl);
 
 		return this;
 	},
@@ -168,5 +181,5 @@ BOOMR.plugins.IPv6 = {
 	}
 };
 
-}(window));
+}());
 
