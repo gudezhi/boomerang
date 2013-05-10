@@ -317,7 +317,7 @@ BOOMR.plugins.RT = {
 	done: function() {
 		BOOMR.debug("Called done", "rt");
 		var t_start, t_done=new Date().getTime(),
-		    basic_timers = { t_done: 1, t_resp: 1, t_page: 1},
+		    basic_timers = { t_done: 1, t_resp: 1, t_page: 1, t_domloaded: 1},
 		    ntimers = 0, t_name, timer, t_other=[];
 
 		impl.complete = false;
@@ -329,7 +329,13 @@ BOOMR.plugins.RT = {
 			return this;
 		}
 
-		if(impl.responseStart) {
+		// check if webtiming get wired data and cookie is usable
+		var errorFlag = false;
+		if (impl.navigationStart && impl.responseStart && impl.t_start && impl.t_fb_approx) {
+			errorFlag = ( (t_done - impl.responseStart)<0 || (impl.responseStart - impl.navigationStart)<0 );
+		}
+
+		if(impl.responseStart && !errorFlag) {
 			// Use NavTiming API to figure out resp latency and page time
 			// t_resp will use the cookie if available or fallback to NavTiming
 			this.endTimer("t_resp", impl.responseStart);
@@ -355,7 +361,7 @@ BOOMR.plugins.RT = {
 			this.endTimer("t_prerender");
 		}
 
-		if(impl.navigationStart) {
+		if(impl.navigationStart && !errorFlag) {
 			t_start = impl.navigationStart;
 		}
 		else if(impl.t_start && impl.navigationType !== 2) {
@@ -420,12 +426,30 @@ BOOMR.plugins.RT = {
 			}
 		}
 
+		BOOMR.addVar("referrer",impl.r);
+		BOOMR.addVar("backend",this.getDelta('t_resp'));
+		BOOMR.addVar("frontend",this.getDelta('t_page'));
+		BOOMR.addVar("totaltime",this.getDelta('t_done'));
+		BOOMR.addVar("domloaded",this.getDelta('t_domloaded'));
+		BOOMR.addVar("debugcomment",BOOMR.getVar('rt.start')+','+impl.t_start+','+impl.navigationType+','+headerParameters.env);
+
+		BOOMR.removeVar('t_done', 't_page', 't_resp', 'r', 't_domloaded', 'v');
+
 		impl.timers = {};
 		impl.complete = true;
 
 		BOOMR.sendBeacon();	// we call sendBeacon() anyway because some other plugin
 					// may have blocked waiting for RT to complete
 		return this;
+	},
+
+	getDelta: function(t_name) {
+		if(impl.timers.hasOwnProperty(t_name)) {
+			timer = impl.timers[t_name];
+			if(typeof timer.delta === "number") {
+				return timer.delta;
+			}
+		}
 	},
 
 	is_complete: function() { return impl.complete; }

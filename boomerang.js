@@ -436,6 +436,12 @@ boomr = {
 		return this;
 	},
 
+	getVar: function(name) {
+		if(typeof name === "string") {
+			return impl.vars[name];
+		}
+	},
+
 	removeVar: function(arg0) {
 		var i, params;
 		if(!arguments.length) {
@@ -476,7 +482,7 @@ boomr = {
 			}
 		}
 
-		impl.vars.v = BOOMR.version;
+		impl.vars.jsversion = BOOMR.version;
 		impl.vars.u = d.URL.replace(/#.*/, '');
 		// use d.URL instead of location.href because of a safari bug
 		if(w !== window) {
